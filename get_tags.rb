@@ -3,14 +3,14 @@ require 'FileUtils'
 require 'andand'
 
 # format:
-#	bpm KEY - [Title] - (Artist)
+#	BPM - KEY - [Title] - (Artist)
 
 MAX_LENGTH = -1
 
 # Return a formatted string, only allowing certain whitelisted characters
 def Format(originalStr, length, padChar)
 	if (originalStr.nil?)
-		return originalStr
+		return 'ENTRY IS EMPTY'
 	end
 	
 	# The key finder that I use adds the key to the file name, which is not needed on the tagged version
@@ -50,6 +50,10 @@ Dir.glob(folder_path + "**/*/") do |folder|
 		
 		# set the BPM; if it's less than 100, then pad with zeros
 		bpm = tag.get_frame(:TBPM).andand.content.to_i.to_s
+		if (bpm.nil?)
+			bpm = 'UNDEFINED_BPM'
+		end
+		
 		while (bpm.length < 3)
 			bpm = '0' + bpm
 		end
@@ -59,6 +63,9 @@ Dir.glob(folder_path + "**/*/") do |folder|
 					
 		keyFrames = tag.frames.select{|f| f.id == :COMM}
 		key = Format(keyFrames.first.andand.content, 10, ' ')
+		if (key.length == 0)
+			key = 'UNDEFINED_KEY set key in comments section'
+		end
 			
 		updatedFileName = "#{bpm} - #{key} - [#{title}] - (#{artist})"
 		
