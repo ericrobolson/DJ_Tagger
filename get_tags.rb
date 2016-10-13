@@ -1,13 +1,20 @@
 require "id3tag"
 require 'FileUtils'
+require 'andand'
 
 # format:
-#	bpm [Title] - (Artist) - KEY
+#	bpm KEY - [Title] - (Artist)
 
 MAX_LENGTH = -1
 
+# Return a formatted string, only allowing certain whitelisted characters
 def Format(originalStr, length, padChar)
-	str = originalStr
+	if (originalStr.nil?)
+		return originalStr
+	end
+	
+	# The key finder that I use adds the key to the file name, which is not needed on the tagged version
+	str = originalStr.split('-').first.rstrip.gsub(/[^0-9A-Za-z\'\&\(\)\,\.\-\[\] ]/i, '')
 	
 	if (length != -1)
 		while (str.length > length)
@@ -26,37 +33,44 @@ def Format(originalStr, length, padChar)
 		end	
 	end
 	
-	return str.gsub(/[^0-9A-Za-z\[\] ]/i, '')
+	return str
 end
 	
 folder_path = 'mp3_files/'
 
 completed = 0
 
-Dir.glob(folder_path + '*.mp3') do |file|
-	mp3_file = File.open(file, "rb")
-	
-	tag = ID3Tag.read(mp3_file)
-		
-	# set the BPM; if it's less than 100, then pad with zeros
-	bpm = tag.get_frame(:TBPM).content.to_i.to_s
-	while (bpm.length < 3)
-		bpm = '0' + bpm
-	end
-		
-	title = Format(tag.title, MAX_LENGTH, ' ')
-	artist = Format(tag.artist, MAX_LENGTH, ' ')
-	key = Format(tag.get_frame(:COMM).content, MAX_LENGTH, ' ')
-		
-	updatedFileName = "#{bpm} - [#{title}] - (#{artist}) - #{key}"
-	
-	newFile = folder_path + updatedFileName + File.extname(file)
 
-	mp3_file.close
+# Go through the folder path, and for each MP3 file, rename it using the given file name template
+Dir.glob(folder_path + "**/*/") do |folder|
+	Dir.glob(folder + '*.mp3') do |file|
+		mp3_file = File.open(file, "rb")
+				
+		tag = ID3Tag.read(mp3_file)
+		
+		# set the BPM; if it's less than 100, then pad with zeros
+		bpm = tag.get_frame(:TBPM).andand.content.to_i.to_s
+		while (bpm.length < 3)
+			bpm = '0' + bpm
+		end
+			
+		title = Format(tag.title, MAX_LENGTH, ' ')
+		artist = Format(tag.artist, MAX_LENGTH, ' ')
+					
+		keyFrames = tag.frames.select{|f| f.id == :COMM}
+		key = Format(keyFrames.first.andand.content, 10, ' ')
+			
+		updatedFileName = "#{bpm} - #{key} - [#{title}] - (#{artist})"
+		
+		newFile = folder + '/' + updatedFileName + File.extname(file)
 	
-	File.rename(file, newFile)
-	completed +=1
-	puts 'Completed: ' + completed.to_s
+		mp3_file.close
+		
+		File.rename(file, newFile)
+		
+		completed +=1
+		puts 'Completed: ' + completed.to_s
+	end
 end
 
 puts 'FIN.'
